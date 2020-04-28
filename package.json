@@ -1,0 +1,20 @@
+{
+  "name": "altaxibot",
+  "version": "1.0.0",
+  "description": "Test task for AquivaLabs",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "abort-controller": "^3.0.0",
+    "mongoose": "^5.9.10",
+    "node-fetch": "^2.6.0",
+    "query-string": "^6.12.1"
+  },
+  "devDependencies": {
+    "mocha": "^7.1.2"
+  }
+}
