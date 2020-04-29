@@ -6,49 +6,91 @@ const logger = require('../utils/logger');
 const telegramUtils = require('../utils/telegramUtils');
 const config = require('../config');
 const UpdateModel = require ('../models/UpdateModel');
-
+const UserContextModel = require('../models/UserContextModel');
+const skills = require('../skills')
 
 const { BASE_URL, API_TOKEN, REQUEST_TIMEOUT, DB_NAME } = config;
-const URL = `${BASE_URL}/${API_TOKEN}`;
 const { isolateEntitiesFromText } = telegramUtils;
 
+const URL = `${BASE_URL}/${API_TOKEN}`;
 
-function sendReply(chat_id, reply_to_message_id, text) {
+// support skills
+const SKILLS = skills.reduce(function(commands, skill) {
+    commands[`${skill.command}`] = skill.skill
+    return commands;
+}, {});
+
+function sendMessage(message) {
 	return fetch(`${URL}/sendMessage`, {
         method: 'post',
-        body:    JSON.stringify({
-        	chat_id,
-        	text,
-        	reply_to_message_id
-        }),
+        body:    JSON.stringify(message),
         headers: { 'Content-Type': 'application/json' },
     })
     .then(res => res.json())
     .then(body => {
     	const result = body.result
-    	logger.log(`The answer "${result.text}" has been sent to the chat ${result.chat.id}`);
+    	logger.log(`The answer has been sent to the chat ${result.chat.id}`);
     	return result
+    })
+    .catch(error => {
+        logger.log(error);
     });
 };
 
-function _applyBotCommand(bot_command, message) {
-    return sendReply(message.from.id, message.message_id, 'I can order a taxi!')
+function setMyCommands(commands) {
+    const body = { commands }
+    return fetch(`${URL}/setMyCommands`, {
+        method: 'post',
+        body:    JSON.stringify(body),
+        headers: { 'Content-Type': 'application/json' },
+    })
+    .then(res => res.json())
+    .then(body => {
+        const result = body.result
+        logger.log(`Skills have been setuped successfully`);
+        return result
+    })
+    .catch(error => {
+        logger.log(error);
+    });
+};
+
+function _applyBotCommand(bot_skill, message) {
+    return SKILLS[bot_skill](message)
+        .then(step => sendMessage({ chat_id: message.from.id, ...step}));
 }
 
+function _textProcessing(message) {
+    return UserContextModel.findOne({ user_id: message.from.id })
+        .then(userContext => {
+            if (userContext) {
+                const skill = SKILLS[userContext.current_skill];
+                return skill(message, userContext)
+                    .then(step => {
+                        sendMessage({chat_id: message.from.id, ...step})
+                    })
+            }
+            return sendMessage({chat_id: message.from.id, ...SKILLS['help']()})
+        });
+}
 
-function _hanleUpdate(update) {
-    const { message } = update;
+function _handleUpdate(update) {
+    const message = update.message || update.edited_message;
     isolateEntities = isolateEntitiesFromText(message.text, message.entities);
-    if (isolateEntities['bot_command']) {
-        return _applyBotCommand(isolateEntities['bot_command'], message)
-    } else {
-        return Promise.resolve();
+    bot_command = isolateEntities['bot_command'] ? isolateEntities['bot_command'].slice(1,) : null;
+
+    if (bot_command && Object.keys(SKILLS).includes(bot_command)) {
+        // User context removed every time when user apply new command 
+        return UserContextModel.deleteOne({ user_id: message.from.id })
+            .then(result => _applyBotCommand(bot_command, message));
     }
+    
+    return _textProcessing(message);
 }
 
 function _handleUpdates(updates) {
     return Promise.all(updates.map(update => new Promise((resolve, reject) => {
-            _hanleUpdate(update)
+            _handleUpdate(update)
                 .then(response => UpdateModel.create({ 
                     update_id: update.update_id, 
                     request: update, 
@@ -88,6 +130,7 @@ function getUpdates(params) {
 
 
 module.exports = {
-    sendReply,
-    getUpdates
+    setMyCommands,
+    getUpdates,
+    sendMessage
 }
