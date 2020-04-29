@@ -33,11 +33,10 @@ mongoose.connect(url, { useNewUrlParser: true, useUnifiedTopology: true })
 		});
 	}
 
-	commands = skills.reduce(function(commands, skill) {
-	    commands['command'] = skill.command
-	    commands['description'] = skill.description
-	    return commands;
-	}, {});
+	commands = skills.map(skill => ({
+		command: skill.command,
+		description: skill.description
+	}));
 
 	telegram.setMyCommands(commands)
 		.then(() => pooling())

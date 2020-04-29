@@ -1,11 +1,13 @@
 function help() {
+	const skills = require('./index');
+	skills_dict = skills.map(skill => `/${skill.command} – ${skill.description}`).join('\r\n');
+
 	return Promise.resolve({
 		parse_mode: 'HTML',
 		text: `
 <strong>Command list</strong>
 
-/order_taxi – order a taxi
-/help - list of all commands
+${skills_dict}
 
 <strong>Feedback</strong>
 
