@@ -176,7 +176,12 @@ function orderTaxi(message, context) {
 	if (message.text === 'Cancel') { // launch previous step
 		return context.current_step !== 0 ? 
 			STEPS[context.current_step - 1](message, context) : 
-			cleanContext(message, context);
+			cleanContext(message, context).then(result => ({
+				text: 'Ok, next time...',
+				reply_markup: {
+					remove_keyboard: true
+				}
+			}));
 	} else { // launch next step
 		const nextStep = context.current_step + 1;
 		return nextStep <= STEPS.length - 1 ? STEPS[nextStep](message, context) : cleanContext(message, context);
